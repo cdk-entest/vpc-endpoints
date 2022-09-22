@@ -7,6 +7,12 @@ date: 20/09/2022
 
 ## Introduction
 
+[GitHub]() shows basic concepts of vpc endpoints
+
+- gateway endpoint s3 service
+- interface endpoints for ssm ec2 connection
+- interface endpooint to invoke lambda from vpc
+
 ## VPC Stack
 
 create a vpc with public, private-nat-subnet, private-isolated-subnet,
