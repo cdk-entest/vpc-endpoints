@@ -1,14 +1,109 @@
-# Welcome to your CDK TypeScript project
+---
+title: Introduction to VPC Endpoints
+author: haimtran
+publishedDate: 20/09/2022
+date: 20/09/2022
+---
 
-This is a blank project for CDK development with TypeScript.
+## Introduction
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
+## VPC Stack
 
-## Useful commands
+create a vpc with public, private-nat-subnet, private-isolated-subnet,
 
-* `npm run build`   compile typescript to js
-* `npm run watch`   watch for changes and compile
-* `npm run test`    perform the jest unit tests
-* `cdk deploy`      deploy this stack to your default AWS account/region
-* `cdk diff`        compare deployed stack with current state
-* `cdk synth`       emits the synthesized CloudFormation template
+```tsx
+this.vpc = new aws_ec2.Vpc(this, "DemoVpc", {
+  vpcName: "DemoVpc",
+  cidr: props.cidr,
+  maxAzs: 1,
+  enableDnsHostnames: true,
+  enableDnsSupport: true,
+  subnetConfiguration: [
+    {
+      name: "Public",
+      cidrMask: 24,
+      subnetType: aws_ec2.SubnetType.PUBLIC,
+    },
+    {
+      name: "PrivateNat",
+      cidrMask: 24,
+      subnetType: aws_ec2.SubnetType.PRIVATE_WITH_NAT,
+    },
+    {
+      name: "Isolated",
+      cidrMask: 24,
+      subnetType: aws_ec2.SubnetType.PRIVATE_ISOLATED,
+    },
+  ],
+});
+this.vpc.applyRemovalPolicy(RemovalPolicy.DESTROY);
+```
+
+## Add VPC Endpoints
+
+add gateway endpoint s3
+
+```tsx
+this.vpc.addGatewayEndpoint("S3Endpoint", {
+  service: aws_ec2.GatewayVpcEndpointAwsService.S3,
+  // default all subnets
+});
+```
+
+add interface endpoint for ssm ec2 connection
+
+```tsx
+// vpc service endpoints ssm ec2
+this.vpc.addInterfaceEndpoint("SsmEndpoint", {
+  service: aws_ec2.InterfaceVpcEndpointAwsService.SSM,
+  privateDnsEnabled: true,
+  subnets: {
+    subnetType: aws_ec2.SubnetType.PRIVATE_ISOLATED,
+  },
+});
+
+this.vpc.addInterfaceEndpoint("SsmMessage", {
+  service: aws_ec2.InterfaceVpcEndpointAwsService.SSM_MESSAGES,
+  privateDnsEnabled: true,
+  subnets: {
+    subnetType: aws_ec2.SubnetType.PRIVATE_ISOLATED,
+  },
+});
+
+this.vpc.addInterfaceEndpoint("Ec2Message", {
+  service: aws_ec2.InterfaceVpcEndpointAwsService.EC2_MESSAGES,
+  privateDnsEnabled: true,
+  subnets: {
+    subnetType: aws_ec2.SubnetType.PRIVATE_ISOLATED,
+  },
+});
+```
+
+## Private EC2
+
+launch an ec2 instance in the isolated subnet
+
+```tsx
+export class Ec2Stack extends Stack {
+  constructor(scope: Construct, id: string, props: Ec2Props) {
+    super(scope, id, props);
+
+    new aws_ec2.Instance(this, "PrivateEc2", {
+      instanceName: "PrivateEc2",
+      vpc: props.vpc,
+      vpcSubnets: {
+        subnetType: aws_ec2.SubnetType.PRIVATE_ISOLATED,
+      },
+      instanceType: aws_ec2.InstanceType.of(
+        aws_ec2.InstanceClass.T2,
+        aws_ec2.InstanceSize.SMALL
+      ),
+      machineImage: new aws_ec2.AmazonLinuxImage({
+        generation: aws_ec2.AmazonLinuxGeneration.AMAZON_LINUX_2,
+      }),
+      role: props.role,
+      securityGroup: props.sg,
+    });
+  }
+}
+```
