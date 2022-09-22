@@ -7,7 +7,7 @@ date: 20/09/2022
 
 ## Introduction
 
-[GitHub]() shows basic concepts of vpc endpoints
+[GitHub](https://github.com/cdk-entest/vpc-endpoints) shows basic concepts of vpc endpoints
 
 - gateway endpoint s3 service
 - interface endpoints for ssm ec2 connection
