@@ -113,3 +113,5 @@ export class Ec2Stack extends Stack {
   }
 }
 ```
+
+## Lambda VPC Endpoint
