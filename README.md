@@ -2,7 +2,7 @@
 title: Introduction to VPC Endpoints
 author: haimtran
 publishedDate: 20/09/2022
-date: 20/09/2022
+date: 2022-09-20
 ---
 
 ## Introduction
@@ -12,6 +12,13 @@ date: 20/09/2022
 - gateway endpoint s3 service
 - interface endpoints for ssm ec2 connection
 - interface endpooint to invoke lambda from vpc
+
+<LinkedImage
+  href="#"
+  height={400}
+  alt="VPC FlowLogs"
+  src="/thumbnail/vpc-endpoints.png"
+/>
 
 ## VPC Stack
 
