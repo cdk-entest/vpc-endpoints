@@ -121,4 +121,152 @@ export class Ec2Stack extends Stack {
 }
 ```
 
-## Lambda VPC Endpoint
+## Lambda RDS in VPC 
+- create a RDS in private subnest 
+- add vpc endpoints so lambda can access rds and secrete manager
+- check lambda and rds security group
+- test lambda fetch data from rds tables 
+
+
+get the existed vpc 
+```tsx 
+const vpc = aws_ec2.Vpc.fromLookup(this, "Vpc", {
+  vpcId: props.vpcId,
+  vpcName: props.vpcName,
+});
+```
+
+add vpc endpoint to access secrete manager
+
+```tsx
+vpc.addInterfaceEndpoint("SecreteManagerVpcEndpoint", {
+  service:
+    aws_ec2.InterfaceVpcEndpointAwsService.SECRETS_MANAGER,
+  privateDnsEnabled: true,
+  subnets: {
+    subnetType: aws_ec2.SubnetType.PRIVATE_ISOLATED,
+  },
+});
+```
+
+db credentials by secret manager 
+```tsx 
+const credentials = aws_rds.Credentials.fromGeneratedSecret(
+  "mysqlSecret",
+  {
+    secretName: "mysql-secret-name",
+  }
+);
+```
+
+
+aws rds db instance in private subnets
+```tsx
+const rds = new aws_rds.DatabaseInstance(
+      this,
+      "RdsIntance",
+      {
+        // production => RETAIN
+        removalPolicy: RemovalPolicy.DESTROY,
+        databaseName: props.dbName,
+        // make sure combination version and instance type
+        engine: aws_rds.DatabaseInstanceEngine.mysql({
+          version: aws_rds.MysqlEngineVersion.VER_8_0_28,
+        }),
+        instanceType: aws_ec2.InstanceType.of(
+          aws_ec2.InstanceClass.BURSTABLE3,
+          aws_ec2.InstanceSize.SMALL
+        ),
+        vpc,
+        vpcSubnets: {
+          // production => private subnet
+          subnetType: aws_ec2.SubnetType.PRIVATE_ISOLATED,
+        },
+        credentials: credentials,
+        securityGroups: [securityGroup]
+      }
+    );
+```
+
+
+## Lambda Stack 
+role for lambda 
+```tsx
+const role = new aws_iam.Role(this, "RoleForLambdaRdsVpc", {
+      roleName: "RoleForLambdaAccessRdsVpc",
+      assumedBy: new aws_iam.ServicePrincipal(
+        "lambda.amazonaws.com"
+      ),
+    });
+
+role.attachInlinePolicy(
+      new aws_iam.Policy(this, "PolicyForLambdaAccessRdsVpc", {
+        policyName: "PolicyForLambdaAccessRdsVpc",
+        statements: [
+          new aws_iam.PolicyStatement({
+            effect: aws_iam.Effect.ALLOW,
+            actions: ["rds:*"],
+            resources: ["*"],
+          }),
+        ],
+      })
+    );
+
+role.addManagedPolicy(
+  aws_iam.ManagedPolicy.fromManagedPolicyArn(
+    this,
+    "AWSLambdaVPCAccessExecutionRole",
+    "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+  )
+);
+
+role.addManagedPolicy(
+  aws_iam.ManagedPolicy.fromManagedPolicyArn(
+    this,
+    "LambdaSecretManager",
+    "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+  )
+);
+```
+
+lambda function in vpc 
+```tsx
+new aws_lambda.Function(this, "LambdaRdsVpc", {
+      functionName: props.functionName,
+      runtime: aws_lambda.Runtime.PYTHON_3_8,
+      code: aws_lambda.Code.fromAsset(
+        path.join(__dirname, "lambda/package.zip")
+      ),
+      handler: "index.handler",
+      timeout: Duration.seconds(10),
+      memorySize: 512,
+      role,
+      vpc,
+      vpcSubnets: {
+        subnetType: aws_ec2.SubnetType.PRIVATE_ISOLATED,
+      },
+      environment: {
+        SECRET_ARN:
+          (credentials.secret &&
+            credentials.secret?.secretArn.toString()) ||
+          "",
+      },
+    });
+```
+
+stack output 
+```tsx
+new CfnOutput(this, "SECRET_ARN", {
+      value:
+        (credentials.secret && credentials.secret?.secretArn) ||
+        "",
+    });
+```
+
+## Troubleshooting 
+run create_table.py to test 
+- get rds credentials from secrete manager 
+- rds connector, lambda and rds subnets and security group 
+- create IcaDb database 
+- create employee table in IcaDb database
+- fetch data from employee table
